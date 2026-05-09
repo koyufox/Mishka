@@ -39,10 +39,8 @@ android {
     }
     buildTypes {
         release {
-            isMinifyEnabled = true
-            isShrinkResources = true
+            optimization.enable = true
             vcsInfo.include = false
-            proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules-android.pro")
             if (keystorePath != null) signingConfig = signingConfigs.getByName("release")
         }
         debug {

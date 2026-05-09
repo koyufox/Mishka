@@ -26,6 +26,7 @@ import mishka.shared.generated.resources.settings_auto_restart
 import mishka.shared.generated.resources.settings_auto_restart_summary
 import mishka.shared.generated.resources.settings_dynamic_notification
 import mishka.shared.generated.resources.settings_dynamic_notification_summary
+import mishka.shared.generated.resources.settings_dynamic_notification_summary_root_unsupported
 import mishka.shared.generated.resources.settings_external_control_summary
 import mishka.shared.generated.resources.settings_file_manager
 import mishka.shared.generated.resources.settings_file_manager_summary
@@ -226,10 +227,15 @@ fun SettingsScreen(
                         .padding(horizontal = 12.dp)
                         .padding(bottom = 12.dp),
                 ) {
+                    val isVpnMode = tunModeIndex == 0
                     SwitchPreference(
                         title = stringResource(Res.string.settings_dynamic_notification),
-                        summary = stringResource(Res.string.settings_dynamic_notification_summary),
-                        checked = isDynamicNotificationEnabled,
+                        summary = stringResource(
+                            if (isVpnMode) Res.string.settings_dynamic_notification_summary
+                            else Res.string.settings_dynamic_notification_summary_root_unsupported
+                        ),
+                        checked = isDynamicNotificationEnabled && isVpnMode,
+                        enabled = isVpnMode,
                         onCheckedChange = { checked ->
                             storage?.putString(StorageKeys.DYNAMIC_NOTIFICATION, if (checked) "true" else "false")
                             isDynamicNotificationEnabled = checked

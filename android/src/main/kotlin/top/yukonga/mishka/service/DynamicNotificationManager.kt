@@ -1,16 +1,11 @@
 package top.yukonga.mishka.service
 
 import android.app.NotificationManager
-import android.content.BroadcastReceiver
 import android.content.Context
-import android.content.Intent
-import android.content.IntentFilter
-import android.os.PowerManager
 import android.util.Log
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.Job
-import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.flow.filterNotNull
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.launch
@@ -32,53 +27,41 @@ class DynamicNotificationManager(
 ) {
 
     private var trafficJob: Job? = null
-    private var screenReceiver: BroadcastReceiver? = null
 
     @OptIn(ExperimentalCoroutinesApi::class)
     fun start(profileName: String) {
         val notificationManager = context.getSystemService(NotificationManager::class.java)
-
-        var isScreenOn = context.getSystemService(PowerManager::class.java)?.isInteractive ?: true
-
-        screenReceiver = object : BroadcastReceiver() {
-            override fun onReceive(ctx: Context?, intent: Intent?) {
-                isScreenOn = intent?.action == Intent.ACTION_SCREEN_ON
-            }
-        }
-        context.registerReceiver(
-            screenReceiver,
-            IntentFilter().apply {
-                addAction(Intent.ACTION_SCREEN_ON)
-                addAction(Intent.ACTION_SCREEN_OFF)
-            },
-        )
 
         // mihomo 重启时 connectionManager.repository 切到新实例，flatMapLatest 自动取消旧 trafficFlow 收集
         trafficJob = scope.launch {
             connectionManager.repository
                 .filterNotNull()
                 .flatMapLatest { it.trafficFlow() }
-                .catch { Log.w(TAG, "Traffic flow error: $it") }
                 .collect { traffic ->
-                    if (!isScreenOn) return@collect
-                    val notification = NotificationHelper.buildDynamicNotification(
-                        context = context,
-                        profileName = profileName,
-                        uploadTotal = FormatUtils.formatBytes(traffic.upTotal),
-                        downloadTotal = FormatUtils.formatBytes(traffic.downTotal),
-                        uploadSpeed = FormatUtils.formatSpeed(traffic.up),
-                        downloadSpeed = FormatUtils.formatSpeed(traffic.down),
-                    )
-                    notificationManager?.notify(NotificationHelper.NOTIFICATION_ID_VPN, notification)
+                    runCatching {
+                        val notification = NotificationHelper.buildDynamicNotification(
+                            context = context,
+                            profileName = profileName,
+                            uploadTotal = FormatUtils.formatBytes(traffic.upTotal),
+                            downloadTotal = FormatUtils.formatBytes(traffic.downTotal),
+                            uploadSpeed = FormatUtils.formatSpeed(traffic.up),
+                            downloadSpeed = FormatUtils.formatSpeed(traffic.down),
+                        )
+                        notificationManager?.notify(NotificationHelper.NOTIFICATION_ID_VPN, notification)
+                    }.onFailure { Log.w(TAG, "Notify failed: $it") }
                 }
         }
     }
 
     /**
      * 根据设置启动动态通知或显示静态通知。
+     *
+     * ROOT 模式（RootTun / RootTproxy）下强制走静态：app 进程无 VpnService 系统 binding 加持，
+     * 后台时 device idle 让 1 Hz `/traffic` WS 帧合并 + `notify()` 批处理，动态通知会冻结
      */
     fun startOrFallbackStatic(storage: PlatformStorage, tunMode: TunMode = TunMode.Vpn) {
-        val isDynamic = storage.getString(StorageKeys.DYNAMIC_NOTIFICATION, "true") == "true"
+        val isDynamicEnabled = storage.getString(StorageKeys.DYNAMIC_NOTIFICATION, "true") == "true"
+        val isDynamic = isDynamicEnabled && tunMode == TunMode.Vpn
         if (isDynamic) {
             val profileName = storage.getString(StorageKeys.ACTIVE_PROFILE_NAME, "Mishka")
             start(profileName)
@@ -97,13 +80,6 @@ class DynamicNotificationManager(
     fun stop() {
         trafficJob?.cancel()
         trafficJob = null
-        screenReceiver?.let {
-            try {
-                context.unregisterReceiver(it)
-            } catch (_: Exception) {
-            }
-        }
-        screenReceiver = null
     }
 
     companion object {
