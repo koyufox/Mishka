@@ -100,13 +100,21 @@ class SubscriptionRepository(
      * 创建新的 Pending 记录。
      */
     @OptIn(ExperimentalUuidApi::class)
-    suspend fun create(type: ProfileType, name: String, source: String, interval: Long = 0): Subscription = profileLock.withLock {
+    suspend fun create(
+        type: ProfileType,
+        name: String,
+        source: String,
+        interval: Long = 0,
+        userAgent: String = "",
+    ): Subscription = profileLock.withLock {
         val uuid = Uuid.random().toString()
+        val trimmedUA = userAgent.trim()
         val pending = PendingEntity(
             uuid = uuid,
             name = name,
             type = type,
             source = source,
+            userAgent = trimmedUA,
             interval = interval,
             createdAt = Clock.System.now().toEpochMilliseconds(),
         )
@@ -117,6 +125,7 @@ class SubscriptionRepository(
             name = name,
             type = type,
             url = source,
+            userAgent = trimmedUA,
             imported = false,
             pending = true,
         )
@@ -125,7 +134,14 @@ class SubscriptionRepository(
     /**
      * 编辑已有订阅（创建 Pending 副本或更新已有 Pending）。
      */
-    suspend fun patch(uuid: String, name: String, source: String, interval: Long) = profileLock.withLock {
+    suspend fun patch(
+        uuid: String,
+        name: String,
+        source: String,
+        interval: Long,
+        userAgent: String,
+    ) = profileLock.withLock {
+        val trimmedUA = userAgent.trim()
         val existing = pendingDao.queryByUUID(uuid)
         if (existing == null) {
             // 从 Imported 创建 Pending 副本
@@ -137,6 +153,7 @@ class SubscriptionRepository(
                     name = name,
                     type = imported.type,
                     source = source,
+                    userAgent = trimmedUA,
                     interval = interval,
                     createdAt = imported.createdAt,
                 )
@@ -147,6 +164,7 @@ class SubscriptionRepository(
                 existing.copy(
                     name = name,
                     source = source,
+                    userAgent = trimmedUA,
                     interval = interval,
                     upload = 0,
                     download = 0,
@@ -177,6 +195,7 @@ class SubscriptionRepository(
             name = pending.name,
             type = pending.type,
             source = pending.source,
+            userAgent = pending.userAgent,
             interval = pending.interval,
             upload = upload,
             download = download,
@@ -263,6 +282,7 @@ class SubscriptionRepository(
                 name = imported.name,
                 type = ProfileType.File,
                 source = "",
+                userAgent = imported.userAgent,
                 interval = 0,
                 createdAt = Clock.System.now().toEpochMilliseconds(),
             )
@@ -318,6 +338,7 @@ class SubscriptionRepository(
             name = pending?.name ?: imported.name,
             type = pending?.type ?: imported.type,
             url = pending?.source ?: imported.source,
+            userAgent = pending?.userAgent ?: imported.userAgent,
             interval = pending?.interval ?: imported.interval,
             upload = pending?.upload ?: liveInfo?.Upload ?: imported.upload,
             download = pending?.download ?: liveInfo?.Download ?: imported.download,

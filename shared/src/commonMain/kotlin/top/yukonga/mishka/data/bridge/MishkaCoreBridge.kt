@@ -15,6 +15,7 @@ expect object MishkaCoreBridge {
         url: String,
         force: Boolean,
         httpProxy: String?,
+        userAgent: String,
         onProgress: suspend (CoreFetchProgress) -> Unit,
     ): CoreFetchResult
 }

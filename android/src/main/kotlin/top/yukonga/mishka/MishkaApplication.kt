@@ -8,8 +8,8 @@ import android.util.Log
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
-import org.lsposed.hiddenapibypass.HiddenApiBypass
 import misc.VersionInfo
+import org.lsposed.hiddenapibypass.HiddenApiBypass
 import top.yukonga.mishka.data.api.MihomoConnectionManager
 import top.yukonga.mishka.data.bridge.MishkaCoreBridge
 import top.yukonga.mishka.platform.PlatformStorage

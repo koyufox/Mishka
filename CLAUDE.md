@@ -110,7 +110,7 @@ MainActivity → App → AppNavigation
 - **进程模型**：单进程（VpnService 和 UI 同进程），ROOT 模式 mihomo 为独立 root 进程
 - **数据持久化**：Room 3.0 KMP（结构化数据）+ PlatformStorage（简单偏好）+ StorageKeys（key 常量）+ OverrideJsonStore（`override.user.json` + ConfigurationOverride `@Serializable`）；store 自带 `state: StateFlow<ConfigurationOverride>` + `update(transform)`，Settings 三个切片 VM 共享同一实例
 - **订阅管理**：Pending → Processing → Imported 三阶段沙箱，`ProfileProcessor` 编排 snapshot → fetchAndValid（JNI 一次完成 fetch + provider prefetch + Parse 校验） → commit；processLock 串行，profileLock 守护 DB 一致性
-- **订阅 HTTP**：mihomo `component/http.HttpRequest`（in-process，cgo），60s context timeout；UA `ClashMetaForAndroid/{version}`（订阅服务白名单）；非 2xx / 空 body → `MishkaCoreError`；不做 base64/V2Ray 转换，原始 YAML 直接交 mihomo
+- **订阅 HTTP**：mihomo `component/http.HttpRequest`（in-process，cgo），60s context timeout；UA 默认 `ClashMetaForAndroid/{version}`（订阅服务白名单），用户可在订阅 Add/Edit 页面填自定义 UA 持久化到 `ImportedEntity.userAgent` / `PendingEntity.userAgent`，pipeline 经 PendingSnapshot 透传到 `MishkaCoreBridge.fetchAndValid` → JNI → Go `runFetchAndValid` 内 `effectiveUA = trim(userAgent) ?: currentUserAgent()`；非 2xx / 空 body → `MishkaCoreError`；不做 base64/V2Ray 转换，原始 YAML 直接交 mihomo
 - **订阅下载走代理**：`SubscriptionProxyResolver` 按「开关 + 代理运行中 + 可解析 mixed-port」返回 proxy URL 或 null；`ProfileProcessor` resolve 后传 `httpProxy` 给 bridge；native glue 在 fetchAndValid 入口 `os.Setenv("HTTPS_PROXY"/"HTTP_PROXY")` defer Unsetenv，覆盖订阅 fetch + provider prefetch + GeoIP 自动下载（mihomo `downloadToPath` 用 Go stdlib `http.Get` 读 env）。processLock 串行保证 set/unset 并发安全。无代理时直连，由 mihomo 内部 90s timeout 兜底
 - **Pipeline 可取消**：协程 cancel → `nativeCancel(token)` → Go ctx Done → native 立即返回 "context canceled"；`ImportProgressDialog` 可选 `onCancel`；`cancelCurrentUpdate` 先同步 `clearProgress()` 让 UI 立即响应，再 cancel 协程
 - **GeoIP 预制**：构建时 DownloadGeoFilesTask 下载 geoip.metadb/geosite.dat/ASN.mmdb 到 assets，启动时提取到 `files/mihomo/geodata/`。JNI 路径用 `mishkaCoreInit(geodataDir)` 把 mihomo 全局 homeDir 指到这里；subprocess runtime 仍按 `-d workDir` + symlink 复用同一份 GeoIP
@@ -132,6 +132,10 @@ MainActivity → App → AppNavigation
 - **ProfileType enum**（`File`/`Url`/`External`）通过 `ProfileTypeConverter` 透明映射为 TEXT 列
 - **订阅 UUID 完整 36 字符**（`Uuid.random().toString()`，UUID v4 不做循环冲突检测）
 - **updatedAt 动态计算**：`ImportedEntity` 无此字段，`resolveProfile` 读 pending→imported 目录 mtime，fallback `imported.createdAt`；订阅 commit/update 自然更新文件 mtime，无需主动写 DB
+
+### Schema 版本
+
+- **v1 → v2**（`MIGRATION_1_2`）：为 `imported` / `pending` 增加 `userAgent TEXT NOT NULL DEFAULT ''` 列，支持 per-profile UA 覆写。新增列时 schema 须由 KSP 自动导出到 [shared/schemas](shared/schemas/)（exportSchema 已在 build.gradle.kts `schemaDirectory("$projectDir/schemas")` 配置），跑一次 `:android:assembleDebug` 落盘；MIGRATION 必须在 `AppDatabaseBuilder.android/desktop` 的 `addMigrations(MIGRATION_1_2)` 注册，遗漏会让升级用户首次启动 crash。
 
 ### 三阶段流程（ProfileProcessor）
 

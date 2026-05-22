@@ -49,23 +49,26 @@ type FetchResult struct {
 //
 // 成功返回 JSON FetchResult 的 C.CString；失败返回 "error: ..."；NULL 表示参数非法。
 // 调用方必须 mishkaFreeString 释放返回值。进度由 mishkaQueryProgress 轮询。
+// userAgent 留空时退回 mishkaCoreInit 设置的全局默认 UA。
 func mishkaFetchAndValid(
 	cWorkDir *C.char,
 	cURL *C.char,
 	force C.int,
 	cHttpProxy *C.char,
+	cUserAgent *C.char,
 	token C.int,
 ) *C.char {
 	workDir := C.GoString(cWorkDir)
 	rawURL := C.GoString(cURL)
 	httpProxy := C.GoString(cHttpProxy)
+	userAgent := C.GoString(cUserAgent)
 
 	ctx, cancel := context.WithCancel(context.Background())
 	cancelRegistry.Store(int32(token), func() { cancel() })
 	defer cancelRegistry.Delete(int32(token))
 	defer progressStore.Delete(int32(token))
 
-	result, err := runFetchAndValid(ctx, int32(token), workDir, rawURL, force != 0, httpProxy)
+	result, err := runFetchAndValid(ctx, int32(token), workDir, rawURL, force != 0, httpProxy, userAgent)
 	if err != nil {
 		return C.CString("error: " + err.Error())
 	}
@@ -79,9 +82,15 @@ func runFetchAndValid(
 	workDir, rawURL string,
 	force bool,
 	httpProxy string,
+	userAgent string,
 ) (*FetchResult, error) {
 	if err := os.MkdirAll(workDir, 0700); err != nil {
 		return nil, fmt.Errorf("create workDir: %w", err)
+	}
+	// 空 UA 退回 mishkaCoreInit 设置的全局默认 —— 用户没显式覆写时仍走 ClashMetaForAndroid
+	effectiveUA := strings.TrimSpace(userAgent)
+	if effectiveUA == "" {
+		effectiveUA = currentUserAgent()
 	}
 
 	// mihomo HTTP / GeoIP downloadToPath 读 env；processLock 串行保证 set/unset 不被并发污染。
@@ -109,7 +118,7 @@ func runFetchAndValid(
 			Progress:    -1,
 			MaxProgress: -1,
 		})
-		if err := fetchURL(ctx, u, configPath, result); err != nil {
+		if err := fetchURL(ctx, u, configPath, result, effectiveUA); err != nil {
 			return nil, err
 		}
 	}
@@ -129,7 +138,7 @@ func runFetchAndValid(
 	}
 	patchProvidersPath(rawCfg, providersDir)
 
-	prefetchProviders(ctx, token, rawCfg)
+	prefetchProviders(ctx, token, rawCfg, effectiveUA)
 
 	if ctx.Err() != nil {
 		return nil, ctx.Err()
@@ -156,7 +165,7 @@ func setProgress(token int32, p FetchProgress) {
 	}
 }
 
-func fetchURL(ctx context.Context, u *url.URL, dest string, result *FetchResult) error {
+func fetchURL(ctx context.Context, u *url.URL, dest string, result *FetchResult, userAgent string) error {
 	scheme := strings.ToLower(u.Scheme)
 	if scheme != "http" && scheme != "https" {
 		return fmt.Errorf("unsupported scheme %s", u.Scheme)
@@ -165,7 +174,7 @@ func fetchURL(ctx context.Context, u *url.URL, dest string, result *FetchResult)
 	subCtx, cancel := context.WithTimeout(ctx, fetchTimeout)
 	defer cancel()
 
-	header := http.Header{"User-Agent": []string{currentUserAgent()}}
+	header := http.Header{"User-Agent": []string{userAgent}}
 	resp, err := clashHttp.HttpRequest(subCtx, u.String(), http.MethodGet, header, nil)
 	if err != nil {
 		return fmt.Errorf("http request: %w", err)
@@ -252,7 +261,7 @@ func patchProvidersPath(cfg *config.RawConfig, providersDir string) {
 }
 
 // best-effort：单个下载失败不阻塞 Parse；缺 provider 时 Parse 自己会报错。
-func prefetchProviders(ctx context.Context, token int32, cfg *config.RawConfig) {
+func prefetchProviders(ctx context.Context, token int32, cfg *config.RawConfig, userAgent string) {
 	type item struct {
 		key  string
 		url  string
@@ -286,14 +295,14 @@ func prefetchProviders(ctx context.Context, token int32, cfg *config.RawConfig) 
 		if err != nil {
 			continue
 		}
-		_ = fetchProvider(ctx, u, it.dest)
+		_ = fetchProvider(ctx, u, it.dest, userAgent)
 	}
 }
 
-func fetchProvider(ctx context.Context, u *url.URL, dest string) error {
+func fetchProvider(ctx context.Context, u *url.URL, dest string, userAgent string) error {
 	subCtx, cancel := context.WithTimeout(ctx, fetchTimeout)
 	defer cancel()
-	header := http.Header{"User-Agent": []string{currentUserAgent()}}
+	header := http.Header{"User-Agent": []string{userAgent}}
 	resp, err := clashHttp.HttpRequest(subCtx, u.String(), http.MethodGet, header, nil)
 	if err != nil {
 		return err

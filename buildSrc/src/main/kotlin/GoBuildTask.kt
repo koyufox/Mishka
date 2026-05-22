@@ -122,7 +122,7 @@ abstract class GoBuildTask : DefaultTask() {
         if (!wrapper.exists()) {
             error(
                 "NDK clang wrapper not found at ${wrapper.absolutePath}. " +
-                    "Check that NDK is installed and minSdk=$sdkLevel is supported.",
+                        "Check that NDK is installed and minSdk=$sdkLevel is supported.",
             )
         }
         return wrapper.absolutePath

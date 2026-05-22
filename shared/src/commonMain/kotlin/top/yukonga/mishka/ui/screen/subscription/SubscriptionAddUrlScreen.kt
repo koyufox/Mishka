@@ -35,7 +35,10 @@ import mishka.shared.generated.resources.subscription_auto_update_placeholder
 import mishka.shared.generated.resources.subscription_config
 import mishka.shared.generated.resources.subscription_name
 import mishka.shared.generated.resources.subscription_url_hint
+import mishka.shared.generated.resources.subscription_url_label
 import mishka.shared.generated.resources.subscription_url_placeholder
+import mishka.shared.generated.resources.subscription_user_agent
+import mishka.shared.generated.resources.subscription_user_agent_placeholder
 import org.jetbrains.compose.resources.stringResource
 import top.yukonga.mishka.ui.component.blur.BlurredBar
 import top.yukonga.mishka.ui.component.blur.rememberBlurBackdrop
@@ -74,6 +77,7 @@ fun SubscriptionAddUrlScreen(
     val defaultName = stringResource(Res.string.common_new_config)
     var inputName by remember { mutableStateOf(defaultName) }
     var inputUrl by remember { mutableStateOf(initialUrl) }
+    var userAgent by remember { mutableStateOf("") }
     var intervalMinutes by remember { mutableStateOf("") }
 
     val backdrop = rememberBlurBackdrop()
@@ -154,7 +158,7 @@ fun SubscriptionAddUrlScreen(
                 )
             }
             item(key = "url_title") {
-                SmallTitle(text = "URL")
+                SmallTitle(text = stringResource(Res.string.subscription_url_label))
             }
             item(key = "url_field") {
                 TextField(
@@ -165,6 +169,21 @@ fun SubscriptionAddUrlScreen(
                         .padding(horizontal = 12.dp)
                         .padding(bottom = 6.dp),
                     label = stringResource(Res.string.subscription_url_placeholder),
+                    useLabelAsPlaceholder = true,
+                )
+            }
+            item(key = "user_agent_title") {
+                SmallTitle(text = stringResource(Res.string.subscription_user_agent))
+            }
+            item(key = "user_agent_field") {
+                TextField(
+                    value = userAgent,
+                    onValueChange = { userAgent = it },
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 12.dp)
+                        .padding(bottom = 6.dp),
+                    label = stringResource(Res.string.subscription_user_agent_placeholder),
                     useLabelAsPlaceholder = true,
                 )
             }
@@ -190,6 +209,7 @@ fun SubscriptionAddUrlScreen(
                             name = inputName.ifBlank { defaultName },
                             url = inputUrl,
                             interval = intervalMs,
+                            userAgent = userAgent.trim(),
                             onComplete = onSaved,
                         )
                     },

@@ -56,7 +56,10 @@ class ProfileProcessor(
                 if (isUpdate) {
                     val imported = repo.queryImported(uuid)
                         ?: throw IllegalArgumentException("Profile $uuid not found")
-                    val snap = PendingSnapshot(imported.uuid, imported.name, imported.type, imported.source, imported.interval)
+                    val snap = PendingSnapshot(
+                        imported.uuid, imported.name, imported.type, imported.source,
+                        imported.userAgent, imported.interval,
+                    )
                     val dir = fileManager.prepareProcessing(uuid)
                     // File 类型需要保留旧 config.yaml 作基准；Url 类型会被 force=true 覆盖下载
                     fileManager.readImportedFile(uuid, "config.yaml")?.let {
@@ -68,7 +71,10 @@ class ProfileProcessor(
                         ?: throw IllegalArgumentException("No pending profile for $uuid")
                     pending.enforceFieldValid()
                     val dir = fileManager.prepareProcessing(uuid)
-                    PendingSnapshot(pending.uuid, pending.name, pending.type, pending.source, pending.interval) to dir
+                    PendingSnapshot(
+                        pending.uuid, pending.name, pending.type, pending.source,
+                        pending.userAgent, pending.interval,
+                    ) to dir
                 }
             }
 
@@ -81,6 +87,7 @@ class ProfileProcessor(
                         url = if (snapshot.type == ProfileType.Url) snapshot.source else "",
                         force = snapshot.type == ProfileType.Url,
                         httpProxy = proxyUrl,
+                        userAgent = snapshot.userAgent,
                         onProgress = { p -> onProgress(mapProgress(p)) },
                     )
                 } catch (e: MishkaCoreError) {
@@ -151,5 +158,6 @@ internal data class PendingSnapshot(
     val name: String,
     val type: ProfileType,
     val source: String,
+    val userAgent: String,
     val interval: Long,
 )

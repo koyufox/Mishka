@@ -30,13 +30,14 @@ actual object MishkaCoreBridge {
         url: String,
         force: Boolean,
         httpProxy: String?,
+        userAgent: String,
         onProgress: suspend (CoreFetchProgress) -> Unit,
     ): CoreFetchResult = coroutineScope {
         val token = tokenSeq.getAndIncrement()
         val pollerJob = launchProgressPoller(this, token, onProgress)
         try {
             val raw = withContext(Dispatchers.IO) {
-                nativeFetchAndValid(workDir, url, force, httpProxy, token)
+                nativeFetchAndValid(workDir, url, force, httpProxy, userAgent, token)
             }
             pollerJob.cancel()
             interpretResult(raw)
@@ -83,6 +84,7 @@ actual object MishkaCoreBridge {
         url: String,
         force: Boolean,
         httpProxy: String?,
+        userAgent: String,
         token: Int,
     ): String?
 

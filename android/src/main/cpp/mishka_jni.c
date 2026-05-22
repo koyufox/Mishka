@@ -36,21 +36,25 @@ Java_top_yukonga_mishka_data_bridge_MishkaCoreBridge_nativeCoreInit(
 JNIEXPORT jstring JNICALL
 Java_top_yukonga_mishka_data_bridge_MishkaCoreBridge_nativeFetchAndValid(
         JNIEnv *env, jclass clazz,
-        jstring jWorkDir, jstring jUrl, jboolean jForce, jstring jHttpProxy, jint jToken) {
+        jstring jWorkDir, jstring jUrl, jboolean jForce, jstring jHttpProxy, jstring jUserAgent,
+        jint jToken) {
     char *workDir = jstring_to_cstr(env, jWorkDir);
     char *url = jstring_to_cstr(env, jUrl);
     char *httpProxy = jstring_to_cstr(env, jHttpProxy);
+    char *userAgent = jstring_to_cstr(env, jUserAgent);
 
     char *result = mishkaFetchAndValid(
             workDir ? workDir : "",
             url ? url : "",
             jForce ? 1 : 0,
             httpProxy ? httpProxy : "",
+            userAgent ? userAgent : "",
             (int) jToken);
 
     free(workDir);
     free(url);
     free(httpProxy);
+    free(userAgent);
 
     return go_cstr_to_jstring(env, result);
 }

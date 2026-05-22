@@ -162,6 +162,13 @@ fun FileManagerEditorScreen(
                     onClick = {
                         if (fileManager == null) return@TextButton
                         val newContent = textState.text.toString()
+                        // 取被编辑订阅的自定义 UA：校验阶段也走 in-process bridge，需要复用同一 UA
+                        // 否则 GeoIP/provider 缺失时下载会用默认 UA 触发服务端拦截
+                        val userAgent = subscriptionViewModel.uiState.value
+                            .subscriptions
+                            .find { it.id == uuid }
+                            ?.userAgent
+                            .orEmpty()
                         isSaving = true
                         scope.launch {
                             val err = runCatching {
@@ -170,6 +177,7 @@ fun FileManagerEditorScreen(
                                     uuid = uuid,
                                     relativePath = relativePath,
                                     newContent = newContent,
+                                    userAgent = userAgent,
                                 )
                             }
                             isSaving = false
@@ -200,6 +208,7 @@ private suspend fun saveWithValidation(
     uuid: String,
     relativePath: String,
     newContent: String,
+    userAgent: String,
 ): String? = withContext(Dispatchers.IO) {
     val needsValidate = relativePath == "config.yaml" || relativePath.endsWith(".yml") || relativePath.endsWith(".yaml")
     if (!needsValidate) {
@@ -215,6 +224,7 @@ private suspend fun saveWithValidation(
             url = "",
             force = false,
             httpProxy = null,
+            userAgent = userAgent,
             onProgress = {},
         )
     }.exceptionOrNull()?.message

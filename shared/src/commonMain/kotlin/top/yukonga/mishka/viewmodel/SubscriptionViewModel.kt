@@ -114,10 +114,16 @@ class SubscriptionViewModel(
     /**
      * URL 导入：create Pending → ProfileProcessor.apply（fetch + validate + commit）
      */
-    fun addSubscription(name: String, url: String, interval: Long = 0, onComplete: () -> Unit = {}) {
+    fun addSubscription(
+        name: String,
+        url: String,
+        interval: Long = 0,
+        userAgent: String = "",
+        onComplete: () -> Unit = {},
+    ) {
         hideAddDialog()
         runPipeline(ProfileOperation.Import, errorKey = Res.string.error_import_failed) {
-            val sub = repository.create(ProfileType.Url, name, url, interval)
+            val sub = repository.create(ProfileType.Url, name, url, interval, userAgent)
             pendingOnFailure(sub.id) {
                 processor.apply(sub.id, ::reportProgress)
             }
@@ -225,9 +231,16 @@ class SubscriptionViewModel(
      * 编辑订阅属性（名称、URL、更新间隔）。URL 类型走 ProfileProcessor 重新校验，
      * File 类型仅 patch DB（无 source 可重新拉取）。
      */
-    fun editSubscription(uuid: String, name: String, source: String, interval: Long, onComplete: () -> Unit = {}) {
+    fun editSubscription(
+        uuid: String,
+        name: String,
+        source: String,
+        interval: Long,
+        userAgent: String,
+        onComplete: () -> Unit = {},
+    ) {
         runPipeline(ProfileOperation.Edit, errorKey = Res.string.error_save_failed) {
-            repository.patch(uuid, name, source, interval)
+            repository.patch(uuid, name, source, interval, userAgent)
             val pending = repository.queryPending(uuid)
             pending?.enforceFieldValid()
             if (pending?.type == ProfileType.Url && pending.source.isNotBlank()) {

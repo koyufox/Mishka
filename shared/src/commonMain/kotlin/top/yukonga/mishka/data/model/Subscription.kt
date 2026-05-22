@@ -10,6 +10,7 @@ data class Subscription(
     val name: String = "",
     val type: ProfileType = ProfileType.Url,
     val url: String = "",
+    val userAgent: String = "",
     val interval: Long = 0,
     val upload: Long = 0,
     val download: Long = 0,

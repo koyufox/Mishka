@@ -8,6 +8,7 @@ actual object MishkaCoreBridge {
         url: String,
         force: Boolean,
         httpProxy: String?,
+        userAgent: String,
         onProgress: suspend (CoreFetchProgress) -> Unit,
     ): CoreFetchResult {
         throw UnsupportedOperationException("MishkaCoreBridge.fetchAndValid not implemented on desktop")
