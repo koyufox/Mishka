@@ -27,7 +27,7 @@ import mishka.shared.generated.resources.settings_auto_restart
 import mishka.shared.generated.resources.settings_auto_restart_summary
 import mishka.shared.generated.resources.settings_dynamic_notification
 import mishka.shared.generated.resources.settings_dynamic_notification_summary
-import mishka.shared.generated.resources.settings_dynamic_notification_summary_root_unsupported
+import mishka.shared.generated.resources.settings_dynamic_notification_summary_root_screen_on
 import mishka.shared.generated.resources.settings_external_control_summary
 import mishka.shared.generated.resources.settings_file_manager
 import mishka.shared.generated.resources.settings_file_manager_summary
@@ -262,10 +262,9 @@ fun SettingsScreen(
                         title = stringResource(Res.string.settings_dynamic_notification),
                         summary = stringResource(
                             if (isVpnMode) Res.string.settings_dynamic_notification_summary
-                            else Res.string.settings_dynamic_notification_summary_root_unsupported
+                            else Res.string.settings_dynamic_notification_summary_root_screen_on
                         ),
-                        checked = isDynamicNotificationEnabled && isVpnMode,
-                        enabled = isVpnMode,
+                        checked = isDynamicNotificationEnabled,
                         onCheckedChange = { checked ->
                             storage?.putString(StorageKeys.DYNAMIC_NOTIFICATION, if (checked) "true" else "false")
                             isDynamicNotificationEnabled = checked

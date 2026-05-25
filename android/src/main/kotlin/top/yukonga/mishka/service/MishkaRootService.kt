@@ -1,9 +1,12 @@
 package top.yukonga.mishka.service
 
 import android.app.Service
+import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
+import android.content.IntentFilter
 import android.os.IBinder
+import android.os.PowerManager
 import android.util.Log
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -59,6 +62,26 @@ class MishkaRootService : Service() {
     private val overrideStore by lazy { OverrideJsonStore(AndroidProfileFileManager(this)) }
     private var monitorJob: Job? = null
     private var notificationRefreshJob: Job? = null
+    private var screenReceiverRegistered = false
+
+    @Volatile
+    private var isScreenInteractive = false
+
+    private val screenReceiver = object : BroadcastReceiver() {
+        override fun onReceive(context: Context, intent: Intent) {
+            when (intent.action) {
+                Intent.ACTION_SCREEN_ON -> {
+                    isScreenInteractive = true
+                    refreshRootNotificationForScreenState()
+                }
+
+                Intent.ACTION_SCREEN_OFF -> {
+                    isScreenInteractive = false
+                    refreshRootNotificationForScreenState()
+                }
+            }
+        }
+    }
 
     // 当前正在运行的 submode；由 onStartCommand 的 EXTRA_SUBMODE 设定
     @Volatile
@@ -86,17 +109,19 @@ class MishkaRootService : Service() {
             stopSelf()
             return
         }
+        isScreenInteractive = getSystemService(PowerManager::class.java)?.isInteractive == true
+        registerReceiver(
+            screenReceiver,
+            IntentFilter().apply {
+                addAction(Intent.ACTION_SCREEN_ON)
+                addAction(Intent.ACTION_SCREEN_OFF)
+            },
+        )
+        screenReceiverRegistered = true
         // 监听动态通知设置变化，实时切换通知样式
         notificationRefreshJob = scope.launch {
             ProxyServiceBridge.notificationRefresh.collect {
-                val state = ProxyServiceBridge.state.value
-                if (state.state == ProxyState.Running && isRootRunning(state.tunMode)) {
-                    dynamicNotification.stop()
-                    dynamicNotification.startOrFallbackStatic(
-                        PlatformStorage(this@MishkaRootService),
-                        state.tunMode,
-                    )
-                }
+                refreshRootNotificationForScreenState()
             }
         }
     }
@@ -127,6 +152,17 @@ class MishkaRootService : Service() {
 
     private fun isRootRunning(mode: TunMode): Boolean =
         mode == TunMode.RootTun || mode == TunMode.RootTproxy
+
+    private fun refreshRootNotificationForScreenState() {
+        val state = ProxyServiceBridge.state.value
+        if (state.state != ProxyState.Running || !isRootRunning(state.tunMode)) return
+        dynamicNotification.stop()
+        dynamicNotification.startOrFallbackStatic(
+            storage = PlatformStorage(this),
+            tunMode = state.tunMode,
+            allowRootDynamic = isScreenInteractive,
+        )
+    }
 
     private fun startProxy(subscriptionId: String? = null) {
         scope.launch {
@@ -224,7 +260,11 @@ class MishkaRootService : Service() {
                             mihomoPid = runner.pid
                         )
                     )
-                    dynamicNotification.startOrFallbackStatic(storage, tunMode)
+                    dynamicNotification.startOrFallbackStatic(
+                        storage = storage,
+                        tunMode = tunMode,
+                        allowRootDynamic = isScreenInteractive,
+                    )
                     storage.putString(StorageKeys.SERVICE_WAS_RUNNING, "true")
                     // 重连到活着的 mihomo：它仍在 runtime/{uuid}/ 下跑，监控日志从同一目录读
                     val workDir = if (subscriptionId != null) ProfileFileOps.getRuntimeDir(
@@ -370,7 +410,11 @@ class MishkaRootService : Service() {
                     mihomoPid = runner.pid
                 )
             )
-            dynamicNotification.startOrFallbackStatic(storage, tunMode)
+            dynamicNotification.startOrFallbackStatic(
+                storage = storage,
+                tunMode = tunMode,
+                allowRootDynamic = isScreenInteractive,
+            )
             storage.putString(StorageKeys.SERVICE_WAS_RUNNING, "true")
             Log.i(TAG, "Proxy running (ROOT $submode)")
 
@@ -545,6 +589,10 @@ class MishkaRootService : Service() {
     override fun onDestroy() {
         notificationRefreshJob?.cancel()
         monitorJob?.cancel()
+        if (screenReceiverRegistered) {
+            runCatching { unregisterReceiver(screenReceiver) }
+            screenReceiverRegistered = false
+        }
         dynamicNotification.stop()
         // 注意：onDestroy 不 kill mihomo，让它继续运行以便重连
         ProxyServiceBridge.updateState(ProxyServiceStatus(ProxyState.Stopped))
