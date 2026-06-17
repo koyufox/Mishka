@@ -221,7 +221,7 @@
     <string name="settings_app_proxy_summary">选择需要代理的应用</string>
     <string name="settings_dynamic_notification">动态通知</string>
     <string name="settings_dynamic_notification_summary">在通知栏显示实时网速和流量</string>
-    <string name="settings_dynamic_notification_summary_root_unsupported">VPN 模式专用</string>
+    <string name="settings_dynamic_notification_summary_root_screen_on">ROOT 模式下仅在亮屏时显示动态通知</string>
     <string name="settings_subscription_via_proxy">通过代理更新</string>
     <string name="settings_subscription_via_proxy_summary">更新订阅时使用代理</string>
     <string name="settings_auto_restart">自动重启</string>

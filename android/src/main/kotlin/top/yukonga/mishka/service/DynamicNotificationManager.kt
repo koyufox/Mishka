@@ -56,12 +56,16 @@ class DynamicNotificationManager(
     /**
      * 根据设置启动动态通知或显示静态通知。
      *
-     * ROOT 模式（RootTun / RootTproxy）下强制走静态：app 进程无 VpnService 系统 binding 加持，
-     * 后台时 device idle 让 1 Hz `/traffic` WS 帧合并 + `notify()` 批处理，动态通知会冻结
+     * ROOT 模式无 VpnService 系统 binding 加持，仅调用方确认亮屏时允许动态，息屏必须静态。
      */
-    fun startOrFallbackStatic(storage: PlatformStorage, tunMode: TunMode = TunMode.Vpn) {
+    fun startOrFallbackStatic(
+        storage: PlatformStorage,
+        tunMode: TunMode = TunMode.Vpn,
+        allowRootDynamic: Boolean = false,
+    ) {
         val isDynamicEnabled = storage.getString(StorageKeys.DYNAMIC_NOTIFICATION, "true") == "true"
-        val isDynamic = isDynamicEnabled && tunMode == TunMode.Vpn
+        val isRootDynamic = allowRootDynamic && (tunMode == TunMode.RootTun || tunMode == TunMode.RootTproxy)
+        val isDynamic = isDynamicEnabled && (tunMode == TunMode.Vpn || isRootDynamic)
         if (isDynamic) {
             val profileName = storage.getString(StorageKeys.ACTIVE_PROFILE_NAME, "Mishka")
             start(profileName)
