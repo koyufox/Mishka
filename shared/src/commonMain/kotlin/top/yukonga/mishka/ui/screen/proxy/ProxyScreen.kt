@@ -8,6 +8,7 @@ import androidx.compose.animation.shrinkVertically
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -62,6 +63,7 @@ import mishka.shared.generated.resources.proxy_sort_reverse
 import mishka.shared.generated.resources.proxy_sort_title
 import mishka.shared.generated.resources.proxy_start_first
 import mishka.shared.generated.resources.proxy_test_group_delay
+import mishka.shared.generated.resources.proxy_test_node_delay
 import mishka.shared.generated.resources.proxy_timeout
 import mishka.shared.generated.resources.proxy_title
 import org.jetbrains.compose.resources.stringResource
@@ -291,6 +293,10 @@ fun ProxyScreen(
                                 ProxyNodeGrid(
                                     group = group,
                                     sortOption = sortOption,
+                                    testingNodes = uiState.testingNodes,
+                                    onTestNodeDelay = { nodeName ->
+                                        viewModel?.testNodeDelay(group.name, nodeName)
+                                    },
                                     onSelect = { proxyName ->
                                         if (group.type.lowercase() == "selector") {
                                             viewModel?.selectProxy(group.name, proxyName)
@@ -473,6 +479,8 @@ private fun DefaultGroupIcon(name: String) {
 private fun ProxyNodeGrid(
     group: ProxyGroupUi,
     sortOption: Int,
+    testingNodes: Set<String> = emptySet(),
+    onTestNodeDelay: (String) -> Unit = {},
     onSelect: (String) -> Unit,
 ) {
     val sortedNodes = remember(group.all, group.delays, sortOption) {
@@ -502,6 +510,8 @@ private fun ProxyNodeGrid(
                         delay = delay,
                         isSelected = isSelected,
                         isSelectable = isSelectable,
+                        isTesting = proxyName in testingNodes,
+                        onTestDelay = { onTestNodeDelay(proxyName) },
                         onClick = { onSelect(proxyName) },
                         modifier = Modifier.weight(1f),
                     )
@@ -521,6 +531,8 @@ private fun ProxyNodeCard(
     delay: Int?,
     isSelected: Boolean,
     isSelectable: Boolean,
+    isTesting: Boolean = false,
+    onTestDelay: () -> Unit = {},
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
@@ -543,12 +555,12 @@ private fun ProxyNodeCard(
             .clip(RoundedCornerShape(12.dp))
             .background(backgroundColor)
             .then(
-                if (isSelectable) Modifier.clickable(onClick = onClick) else Modifier
+                if (isSelectable) Modifier.clickable { onClick() } else Modifier
             )
             .padding(12.dp),
     ) {
         Column {
-            // 第一行：节点名 + 延迟
+            // 第一行：节点名 + 延迟区域
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween,
@@ -563,14 +575,35 @@ private fun ProxyNodeCard(
                     overflow = TextOverflow.Ellipsis,
                     modifier = Modifier.weight(1f, fill = false),
                 )
-                if (delayText != null) {
-                    Spacer(Modifier.width(6.dp))
-                    Text(
-                        text = delayText,
-                        fontSize = 12.sp,
-                        fontWeight = FontWeight.Medium,
-                        color = delayColor,
-                    )
+                Spacer(Modifier.width(6.dp))
+                Box(
+                    modifier = Modifier.clickable(
+                        enabled = !isTesting,
+                        interactionSource = remember { MutableInteractionSource() },
+                        indication = null,
+                    ) { onTestDelay() },
+                    contentAlignment = Alignment.Center,
+                ) {
+                    if (isTesting) {
+                        CircularProgressIndicator(
+                            size = 12.dp,
+                            strokeWidth = 2.dp,
+                        )
+                    } else if (delayText != null) {
+                        Text(
+                            text = delayText,
+                            fontSize = 12.sp,
+                            fontWeight = FontWeight.Medium,
+                            color = delayColor,
+                        )
+                    } else {
+                        Icon(
+                            imageVector = MiuixIcons.Refresh,
+                            contentDescription = stringResource(Res.string.proxy_test_node_delay),
+                            modifier = Modifier.size(14.dp),
+                            tint = StatusColors.neutral,
+                        )
+                    }
                 }
             }
 
